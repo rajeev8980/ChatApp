@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,12 +13,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,12 +33,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.KeyboardVoice
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.TagFaces
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,6 +84,7 @@ fun ChatScreen(
     val sending by vm.sending.collectAsState()
     val error by vm.error.collectAsState()
     var input by remember { mutableStateOf("") }
+    var showEmoji by remember { mutableStateOf(false) }
     val myUid = try { SessionManager.get().uid } catch (_: Exception) { "" }
     val snack = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
@@ -112,10 +114,14 @@ fun ChatScreen(
                 input = input,
                 onInput = { input = it },
                 sending = sending,
+                showEmoji = showEmoji,
+                onToggleEmoji = { showEmoji = !showEmoji },
+                onEmoji = { input += it },
                 onPickImage = { picker.launch("image/*") },
                 onSend = {
                     vm.sendText(chatId, input)
                     input = ""
+                    showEmoji = false
                 }
             )
         },
@@ -180,15 +186,6 @@ fun WaChatHeader(chatName: String, onBack: () -> Unit) {
             modifier = Modifier.weight(1f),
             maxLines = 1
         )
-        IconButton(onClick = {}) {
-            Icon(Icons.Default.Videocam, contentDescription = "Video", tint = WaText)
-        }
-        IconButton(onClick = {}) {
-            Icon(Icons.Default.Call, contentDescription = "Call", tint = WaText)
-        }
-        IconButton(onClick = {}) {
-            Icon(Icons.Default.MoreVert, contentDescription = "More", tint = WaText)
-        }
     }
 }
 
@@ -237,67 +234,95 @@ fun WaBubble(msg: Message, isMine: Boolean) {
     }
 }
 
+val EMOJIS = listOf(
+    "😀", "😁", "😂", "🤣", "😊", "😍", "😘", "😎",
+    "🤔", "😐", "🙄", "😴", "😷", "🤒", "🤕", "🤢",
+    "😈", "👻", "💀", "🤖", "🎃", "😺", "😹", "🙈",
+    "👍", "👎", "👏", "🙏", "💪", "👋", "✌️", "🤝",
+    "❤️", "💔", "💯", "✨", "🔥", "🎉", "🎂", "🌹",
+    "😢", "😭", "😡", "🥳", "🤯", "🥺", "😳", "🤗",
+    "👀", "💤", "💩", "👑", "💎", "⚽", "🎵", "🚗",
+    "🍕", "☕", "🌙", "☀️", "🌈", "⭐", "✅", "❌"
+)
+
 @Composable
 fun WaInputBar(
     input: String,
     onInput: (String) -> Unit,
     sending: Boolean,
+    showEmoji: Boolean,
+    onToggleEmoji: () -> Unit,
+    onEmoji: (String) -> Unit,
     onPickImage: () -> Unit,
     onSend: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().imePadding()
-            .padding(horizontal = 6.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Row(
-            modifier = Modifier.weight(1f)
-                .clip(RoundedCornerShape(24.dp))
-                .background(WaHeader)
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = {}) {
-                Icon(Icons.Default.TagFaces, contentDescription = "Emoji", tint = WaTextDim)
-            }
-            Box(Modifier.weight(1f)) {
-                BasicTextField(
-                    value = input,
-                    onValueChange = onInput,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                    textStyle = TextStyle(color = WaText, fontSize = 17.sp),
-                    cursorBrush = SolidColor(WaGreen),
-                    maxLines = 5
-                )
-                if (input.isEmpty()) {
-                    Text("Message", color = WaTextDim, fontSize = 17.sp,
-                        modifier = Modifier.padding(vertical = 10.dp))
+    Column(Modifier.fillMaxWidth().imePadding()) {
+        if (showEmoji) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(8),
+                modifier = Modifier.fillMaxWidth().height(240.dp)
+                    .background(WaHeader)
+                    .padding(4.dp)
+            ) {
+                items(EMOJIS) { emoji ->
+                    Box(
+                        modifier = Modifier.size(44.dp).clickable { onEmoji(emoji) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(emoji, fontSize = 24.sp)
+                    }
                 }
             }
-            IconButton(onClick = onPickImage, enabled = !sending) {
-                if (sending) CircularProgressIndicator(Modifier.size(22.dp))
-                else Icon(Icons.Default.Add, contentDescription = "Attach", tint = WaTextDim)
-            }
-            IconButton(onClick = onPickImage) {
-                Icon(Icons.Default.PhotoCamera, contentDescription = "Camera", tint = WaTextDim)
-            }
         }
-        Spacer(Modifier.width(6.dp))
-        Surface(
-            shape = CircleShape,
-            color = WaGreen,
-            modifier = Modifier.size(50.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            IconButton(
-                onClick = { if (input.isNotBlank()) onSend() },
-                enabled = input.isNotBlank()
+            Row(
+                modifier = Modifier.weight(1f)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(WaHeader)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    if (input.isNotBlank()) Icons.AutoMirrored.Filled.Send
-                    else Icons.Default.KeyboardVoice,
-                    contentDescription = "Send",
-                    tint = androidx.compose.ui.graphics.Color.White
-                )
+                IconButton(onClick = onToggleEmoji) {
+                    Icon(Icons.Default.TagFaces, contentDescription = "Emoji", tint = WaGreen)
+                }
+                Box(Modifier.weight(1f)) {
+                    BasicTextField(
+                        value = input,
+                        onValueChange = onInput,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                        textStyle = TextStyle(color = WaText, fontSize = 17.sp),
+                        cursorBrush = SolidColor(WaGreen),
+                        maxLines = 5
+                    )
+                    if (input.isEmpty()) {
+                        Text("Message", color = WaTextDim, fontSize = 17.sp,
+                            modifier = Modifier.padding(vertical = 10.dp))
+                    }
+                }
+                IconButton(onClick = onPickImage, enabled = !sending) {
+                    if (sending) CircularProgressIndicator(Modifier.size(22.dp))
+                    else Icon(Icons.Default.Add, contentDescription = "Attach", tint = WaTextDim)
+                }
+                IconButton(onClick = onPickImage) {
+                    Icon(Icons.Default.PhotoCamera, contentDescription = "Camera", tint = WaTextDim)
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+            Surface(
+                shape = CircleShape,
+                color = WaGreen,
+                modifier = Modifier.size(50.dp)
+            ) {
+                IconButton(onClick = onSend, enabled = input.isNotBlank()) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = androidx.compose.ui.graphics.Color.White
+                    )
+                }
             }
         }
     }
