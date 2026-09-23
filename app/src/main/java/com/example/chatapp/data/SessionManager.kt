@@ -22,6 +22,10 @@ class SessionManager(context: Context) {
         get() = prefs.getString("email", "").orEmpty()
         set(v) = prefs.edit().putString("email", v).apply()
 
+    var serverUrl: String
+        get() = prefs.getString("server", "").orEmpty()
+        set(v) = prefs.edit().putString("server", v).apply()
+
     fun hasToken(): Boolean = token.isNotBlank()
 
     fun save(token: String, uid: String, name: String, email: String) {

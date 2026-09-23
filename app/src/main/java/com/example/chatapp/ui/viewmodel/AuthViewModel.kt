@@ -27,11 +27,11 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun login(email: String, password: String) {
+    fun login(email: String, password: String, server: String = "") {
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             try {
-                repo.login(email, password)
+                if (server.isNotBlank()) repo.setServer(server)
                 val profile = repo.loadOrCreateProfile()
                 _state.value = AuthUiState(isLoggedIn = true, profile = profile)
             } catch (e: Exception) {
@@ -43,10 +43,11 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun register(name: String, email: String, password: String) {
+    fun register(name: String, email: String, password: String, server: String = "") {
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             try {
+                if (server.isNotBlank()) repo.setServer(server)
                 repo.register(name, email, password)
                 val profile = repo.loadOrCreateProfile()
                 _state.value = AuthUiState(isLoggedIn = true, profile = profile)
@@ -78,6 +79,8 @@ class AuthViewModel : ViewModel() {
         _state.value = AuthUiState(isLoggedIn = false)
     }
 
+    fun currentServer(): String = repo.currentServer()
+
     fun clearError() {
         _state.value = _state.value.copy(error = null)
     }
@@ -86,7 +89,7 @@ class AuthViewModel : ViewModel() {
         val msg = e.localizedMessage ?: "Request failed"
         return when {
             "Unable to resolve host" in msg || "Failed to connect" in msg ->
-                "Cannot reach server. Is the backend running? (Emulator uses http://10.0.2.2:8000)"
+                "Cannot reach server. Check the Server address and that the backend is running."
             msg.startsWith("HTTP 401") -> "Invalid email or password"
             msg.startsWith("HTTP 400") -> msg.substringAfter(" ", msg)
             else -> msg

@@ -44,7 +44,7 @@ object Network {
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
         return Retrofit.Builder()
-            .baseUrl(ServerConfig.BASE_URL)
+            .baseUrl(ServerConfig.base())
             .client(client)
             .addConverterFactory(GsonConverterFactory.create(GsonBuilder().create()))
             .build()

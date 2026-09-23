@@ -15,6 +15,16 @@ class AuthRepository {
     val currentUid: String? get() = session.uid.takeIf { it.isNotBlank() }
     val isLoggedIn: Boolean get() = session.hasToken()
 
+    /** Point the app at a backend on any network. Call BEFORE login/register. */
+    fun setServer(url: String) {
+        val norm = com.example.chatapp.data.remote.ServerConfig.normalize(url)
+        SocketManager.disconnect()
+        session.serverUrl = norm
+        Network.reset()
+    }
+
+    fun currentServer(): String = com.example.chatapp.data.remote.ServerConfig.base()
+
     suspend fun login(email: String, password: String) {
         val res = api.login(LoginRequest(email.trim(), password))
         session.save(res.token, res.user.uid, res.user.displayName, res.user.email)

@@ -36,6 +36,7 @@ fun LoginScreen(
     val state by vm.state.collectAsState()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var server by remember { mutableStateOf(vm.currentServer().trimEnd('/')) }
 
     if (state.isLoggedIn) {
         onLoginSuccess()
@@ -47,6 +48,13 @@ fun LoginScreen(
     ) {
         Text("Welcome back", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(16.dp))
+        OutlinedTextField(
+            value = server, onValueChange = { server = it },
+            label = { Text("Server (works on any network)") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = email, onValueChange = { email = it },
             label = { Text("Email") }, singleLine = true,
@@ -66,7 +74,7 @@ fun LoginScreen(
         }
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = { vm.login(email, password) },
+            onClick = { vm.login(email, password, server) },
             enabled = !state.loading && email.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -89,6 +97,7 @@ fun RegisterScreen(
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var server by remember { mutableStateOf(vm.currentServer().trimEnd('/')) }
 
     if (state.isLoggedIn) {
         onRegisterSuccess()
@@ -100,6 +109,13 @@ fun RegisterScreen(
     ) {
         Text("Create account", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(16.dp))
+        OutlinedTextField(
+            value = server, onValueChange = { server = it },
+            label = { Text("Server (works on any network)") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = name, onValueChange = { name = it },
             label = { Text("Display name") }, singleLine = true,
@@ -125,7 +141,7 @@ fun RegisterScreen(
         }
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = { vm.register(name, email, password) },
+            onClick = { vm.register(name, email, password, server) },
             enabled = !state.loading && name.isNotBlank() && email.isNotBlank() && password.length >= 6,
             modifier = Modifier.fillMaxWidth()
         ) {
