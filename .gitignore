@@ -1,0 +1,26 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/
+.DS_Store
+build/
+app/build/
+captures
+.externalNativeBuild
+.cxx
+local.properties
+# ChatApp backend runtime files
+server/chat.db*
+server/uploads/*
+!server/uploads/.gitkeep
+server/__pycache__/
+server/app/__pycache__/
+server/app/routers/__pycache__/
+server/.venv/
+*.pyc
