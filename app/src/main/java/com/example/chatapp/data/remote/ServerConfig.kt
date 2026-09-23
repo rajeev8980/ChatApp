@@ -2,7 +2,7 @@ package com.example.chatapp.data.remote
 
 /** Server address. Emulator -> host PC is 10.0.2.2. Physical device: use your PC's LAN IP. */
 object ServerConfig {
-    var BASE_URL = "http://10.0.2.2:8000/"
+    var BASE_URL = "http://10.250.138.231:8000/"
 
     fun wsUrl(token: String): String {
         val http = BASE_URL.trim().trimEnd('/')
