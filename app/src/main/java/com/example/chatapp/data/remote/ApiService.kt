@@ -88,6 +88,12 @@ interface ApiService {
     @GET("api/chats")
     suspend fun chats(): List<ApiChat>
 
+    @GET("api/chats/{id}")
+    suspend fun chat(@Path("id") chatId: String): ApiChat
+
+    @GET("api/users/{uid}")
+    suspend fun user(@Path("uid") uid: String): ApiUser
+
     @POST("api/chats/direct")
     suspend fun direct(@Body body: DirectRequest): ApiChat
 

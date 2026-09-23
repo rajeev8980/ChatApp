@@ -109,6 +109,12 @@ def group_chat(body: GroupChatIn, user: dict = Depends(current_user)):
     return _chat_dict(db.fetch_one("SELECT * FROM chats WHERE id = ?", (cid,)))
 
 
+@chats_router.get("/{chat_id}")
+def get_chat(chat_id: str, user: dict = Depends(current_user)):
+    chat = _require_member(chat_id, user["id"])
+    return _chat_dict(chat)
+
+
 @chats_router.get("/{chat_id}/messages")
 def get_messages(chat_id: str, limit: int = 200, user: dict = Depends(current_user)):
     _require_member(chat_id, user["id"])

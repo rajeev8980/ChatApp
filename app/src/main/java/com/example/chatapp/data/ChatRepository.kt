@@ -97,6 +97,10 @@ class ChatRepository {
         return api.direct(DirectRequest(other.uid)).chatId
     }
 
+    suspend fun getChat(chatId: String): Chat = api.chat(chatId).toDomain()
+
+    suspend fun getUser(uid: String): User = api.user(uid).toDomain()
+
     suspend fun createGroupChat(name: String, myUid: String, memberUids: List<String>): String {
         return api.group(GroupRequest(name.trim(), memberUids)).chatId
     }
