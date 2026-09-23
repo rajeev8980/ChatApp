@@ -33,12 +33,17 @@ class ChatViewModel : ViewModel() {
             chatRepo.observeMessages(chatId).collectLatest { server ->
                 val me = try { SessionManager.get().uid } catch (_: Exception) { "" }
                 val pending = chatRepo.pendingFor(chatId).map {
+                    val label = when {
+                        it.text.isNotBlank() -> it.text
+                        it.fileName.isNotBlank() -> "\uD83D\uDCCE ${it.fileName}"
+                        else -> "\uD83D\uDCF7 Photo"
+                    }
                     Message(
                         messageId = "pending-${it.tempId}",
                         chatId = chatId,
                         senderId = me,
                         senderName = "",
-                        text = it.text.ifBlank { "\uD83D\uDCF7 Photo" },
+                        text = label,
                         timestamp = "",
                         pending = true
                     )
@@ -102,15 +107,36 @@ class ChatViewModel : ViewModel() {
         }
     }
 
+    fun sendFile(chatId: String, uri: Uri, displayName: String) {
+        viewModelScope.launch {
+            _sending.value = true
+            try {
+                chatRepo.sendFile(chatId, uri, displayName)
+            } catch (e: ChatRepository.OfflineQueued) {
+                _error.value = e.message
+                refreshPending(chatId)
+            } catch (e: Exception) {
+                _error.value = e.localizedMessage
+            } finally {
+                _sending.value = false
+            }
+        }
+    }
+
     private fun refreshPending(chatId: String) {
         viewModelScope.launch {
             val me = try { SessionManager.get().uid } catch (_: Exception) { "" }
             val pending = chatRepo.pendingFor(chatId).map {
+                val label = when {
+                    it.text.isNotBlank() -> it.text
+                    it.fileName.isNotBlank() -> "\uD83D\uDCCE ${it.fileName}"
+                    else -> "\uD83D\uDCF7 Photo"
+                }
                 Message(
                     messageId = "pending-${it.tempId}",
                     chatId = chatId,
                     senderId = me,
-                    text = it.text.ifBlank { "\uD83D\uDCF7 Photo" },
+                    text = label,
                     pending = true
                 )
             }

@@ -49,11 +49,13 @@ data class ApiMessage(
     val text: String = "",
     val imageUrl: String = "",
     val timestamp: String = "",
-    val seenBy: List<String> = emptyList()
+    val seenBy: List<String> = emptyList(),
+    val fileName: String = "",
+    val fileSize: Long = 0L
 ) {
     fun toDomain() = Message(messageId, chatId, senderId, senderName, text,
         if (imageUrl.isNotBlank()) ServerConfig.absolute(imageUrl) else "", timestamp,
-        seenBy = seenBy)
+        seenBy = seenBy, fileName = fileName, fileSize = fileSize)
 }
 
 data class AuthResponse(val token: String = "", val user: ApiUser = ApiUser())
@@ -111,4 +113,8 @@ interface ApiService {
     @Multipart
     @POST("api/chats/{id}/image")
     suspend fun sendImage(@Path("id") chatId: String, @Part file: MultipartBody.Part): ApiMessage
+
+    @Multipart
+    @POST("api/chats/{id}/file")
+    suspend fun sendFile(@Path("id") chatId: String, @Part file: MultipartBody.Part): ApiMessage
 }

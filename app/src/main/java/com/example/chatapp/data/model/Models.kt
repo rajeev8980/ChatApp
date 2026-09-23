@@ -31,7 +31,14 @@ fun isoMillis(iso: String): Long? {
     } catch (_: Exception) { null }
 }
 
-/** "Sep 23, 2026, 12:39 AM" style stamp for the date header. */
+/** 1.2 MB, 340 KB style sizes. */
+fun humanSize(bytes: Long): String {
+    if (bytes <= 0) return ""
+    val kb = bytes / 1024.0
+    if (kb < 1024) return "${if (kb < 10) String.format("%.1f", kb) else kb.toInt()} KB"
+    val mb = kb / 1024.0
+    return "${if (mb < 10) String.format("%.1f", mb) else mb.toInt()} MB"
+}
 fun stampText(iso: String): String {
     val t = isoMillis(iso) ?: return shortTime(iso)
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = t }
@@ -88,7 +95,10 @@ data class Message(
     val imageUrl: String = "",
     val timestamp: String = "",
     val pending: Boolean = false,
-    val seenBy: List<String> = emptyList()
+    val seenBy: List<String> = emptyList(),
+    val fileName: String = "",
+    val fileSize: Long = 0L
 ) {
-    val isImage: Boolean get() = imageUrl.isNotBlank()
+    val isImage: Boolean get() = imageUrl.isNotBlank() && fileName.isBlank()
+    val isFile: Boolean get() = fileName.isNotBlank()
 }

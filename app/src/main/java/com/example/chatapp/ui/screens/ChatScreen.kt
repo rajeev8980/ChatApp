@@ -1,6 +1,8 @@
 package com.example.chatapp.ui.screens
 
+import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.TagFaces
@@ -50,6 +53,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +61,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -69,6 +74,7 @@ import com.example.chatapp.data.model.Chat
 import com.example.chatapp.data.model.Message
 import com.example.chatapp.data.model.User
 import com.example.chatapp.data.model.activeText
+import com.example.chatapp.data.model.humanSize
 import com.example.chatapp.data.model.stampText
 import com.example.chatapp.data.remote.SocketEvent
 import com.example.chatapp.data.remote.SocketManager
@@ -85,6 +91,7 @@ import com.example.chatapp.ui.theme.ChatTextDim
 import com.example.chatapp.ui.theme.InputBg
 import com.example.chatapp.ui.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 val EMOJIS = listOf(
     "😀", "😁", "😂", "🤣", "😊", "😍", "😘", "😎",
@@ -115,11 +122,35 @@ fun ChatScreen(
     val snack = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     val repo = remember { ChatRepository() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) vm.sendImage(chatId, uri)
+    }
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val name = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (c.moveToFirst() && i >= 0) c.getString(i) else null
+            } ?: "file"
+            vm.sendFile(chatId, uri, name)
+        }
+    }
+
+    fun openUrl(url: String) {
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Exception) {
+            scope.launch {
+                snack.showSnackbar("Cannot open this file on this device")
+            }
+        }
     }
 
     LaunchedEffect(chatId) {
@@ -192,6 +223,7 @@ fun ChatScreen(
                 onToggleEmoji = { showEmoji = !showEmoji },
                 onEmoji = { input += it },
                 onPickImage = { picker.launch("image/*") },
+                onPickFile = { filePicker.launch("*/*") },
                 onSend = {
                     vm.sendText(chatId, input)
                     input = ""
@@ -236,7 +268,8 @@ fun ChatScreen(
                         msg = msg,
                         isMine = msg.senderId == myUid,
                         showAvatar = showAvatar,
-                        status = status
+                        status = status,
+                        onOpenFile = ::openUrl
                     )
                 }
             }
@@ -276,7 +309,7 @@ fun IosHeader(title: String, subtitle: String, onBack: () -> Unit) {
 }
 
 @Composable
-fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean, status: String = "") {
+fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean, status: String = "", onOpenFile: (String) -> Unit = {}) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
     Row(
         Modifier.fillMaxWidth(),
@@ -302,6 +335,32 @@ fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean, status: String
         ) {
             if (!isMine && msg.senderName.isNotBlank()) {
                 Text(msg.senderName, fontSize = 12.sp, color = AccentBlue)
+            }
+            if (msg.isFile) {
+                Row(
+                    modifier = Modifier.widthIn(max = 230.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isMine) BubbleTextMine.copy(alpha = 0.15f) else ChatTextDim.copy(alpha = 0.15f))
+                        .clickable { if (msg.imageUrl.isNotBlank() && !msg.pending) onOpenFile(msg.imageUrl) }
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("\uD83D\uDCC4", fontSize = 30.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            msg.fileName.ifBlank { "File" },
+                            fontSize = 14.sp,
+                            color = if (isMine) BubbleTextMine else BubbleTextTheirs,
+                            maxLines = 2
+                        )
+                        Text(
+                            humanSize(msg.fileSize),
+                            fontSize = 12.sp,
+                            color = if (isMine) BubbleTextMine.copy(alpha = 0.8f) else ChatTextDim
+                        )
+                    }
+                }
             }
             if (msg.isImage) {
                 AsyncImage(
@@ -338,6 +397,7 @@ fun IosInputBar(
     onToggleEmoji: () -> Unit,
     onEmoji: (String) -> Unit,
     onPickImage: () -> Unit,
+    onPickFile: () -> Unit,
     onSend: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().imePadding().background(ChatBackground)) {
@@ -389,6 +449,9 @@ fun IosInputBar(
                 IconButton(onClick = onPickImage, enabled = !sending, modifier = Modifier.size(34.dp)) {
                     if (sending) CircularProgressIndicator(Modifier.size(20.dp))
                     else Icon(Icons.Default.Image, contentDescription = "Photo", tint = ChatTextDim)
+                }
+                IconButton(onClick = onPickFile, enabled = !sending, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.AttachFile, contentDescription = "File", tint = ChatTextDim)
                 }
                 IconButton(onClick = onPickImage, modifier = Modifier.size(34.dp)) {
                     Icon(Icons.Default.PhotoCamera, contentDescription = "Camera", tint = ChatTextDim)

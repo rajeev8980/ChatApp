@@ -126,12 +126,23 @@ class ChatRepository {
         }
     }
 
+    suspend fun sendFile(chatId: String, uri: Uri, displayName: String) {
+        try {
+            uploadFile(chatId, uri.toString(), displayName)
+        } catch (e: Exception) {
+            outbox.add(PendingSend(chatId = chatId, fileUri = uri.toString(), fileName = displayName))
+            throw OfflineQueued(e)
+        }
+    }
+
     /** Try to flush all queued messages. Returns remaining count. */
     suspend fun flushOutbox(): Int {
         val pending = outbox.list()
         for (p in pending) {
             try {
-                if (p.imageUri.isNotBlank()) {
+                if (p.fileUri.isNotBlank()) {
+                    uploadFile(p.chatId, p.fileUri, p.fileName)
+                } else if (p.imageUri.isNotBlank()) {
                     uploadImage(p.chatId, p.imageUri)
                 } else {
                     api.sendText(p.chatId, TextRequest(p.text))
@@ -156,6 +167,19 @@ class ChatRepository {
         val body = bytes.toRequestBody(mime.toMediaTypeOrNull())
         val part = MultipartBody.Part.createFormData("file", "photo.jpg", body)
         api.sendImage(chatId, part)
+    }
+
+    private suspend fun uploadFile(chatId: String, uriString: String, displayName: String) {
+        val ctx = ChatApp.instance
+        val uri = Uri.parse(uriString)
+        val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalArgumentException("Cannot read file")
+        if (bytes.size > 25 * 1024 * 1024) throw IllegalArgumentException("File over 25 MB")
+        val mime = ctx.contentResolver.getType(uri) ?: "application/octet-stream"
+        val safeName = displayName.take(80).ifBlank { "file" }
+        val body = bytes.toRequestBody(mime.toMediaTypeOrNull())
+        val part = MultipartBody.Part.createFormData("file", safeName, body)
+        api.sendFile(chatId, part)
     }
 
     class OfflineQueued(cause: Exception) : Exception("No connection — message queued, will send automatically")

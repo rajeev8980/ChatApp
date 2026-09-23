@@ -48,6 +48,8 @@ def _msg_dict(row: dict) -> dict:
         "imageUrl": row["image_url"] or "",
         "timestamp": row["timestamp"] or "",
         "seenBy": seen,
+        "fileName": row.get("file_name") or "",
+        "fileSize": row.get("file_size") or 0,
     }
 
 
@@ -154,15 +156,17 @@ async def get_messages(chat_id: str, limit: int = 200, user: dict = Depends(curr
     return [_msg_dict(r) for r in rows]
 
 
-async def _store_and_broadcast(chat_id: str, user: dict, text: str, image_url: str) -> dict:
+async def _store_and_broadcast(chat_id: str, user: dict, text: str, image_url: str,
+                                 file_name: str = "", file_size: int = 0) -> dict:
     mid = uuid.uuid4().hex
     ts = now_iso()
     db.execute(
-        "INSERT INTO messages (id, chat_id, sender_id, sender_name, text, image_url, timestamp)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (mid, chat_id, user["id"], user["name"], text, image_url, ts),
+        "INSERT INTO messages (id, chat_id, sender_id, sender_name, text, image_url,"
+        " file_name, file_size, timestamp)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (mid, chat_id, user["id"], user["name"], text, image_url, file_name, file_size, ts),
     )
-    preview = text[:120] if text else "\U0001f4f7 Photo"
+    preview = text[:120] if text else ("\U0001f4ce " + file_name if file_name else "\U0001f4f7 Photo")
     db.execute(
         "UPDATE chats SET last_message = ?, last_message_time = ?, last_sender_id = ?"
         " WHERE id = ?",
@@ -187,11 +191,39 @@ async def send_image(
     ext = Path(file.filename or "img.jpg").suffix.lower() or ".jpg"
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         raise HTTPException(status_code=400, detail="Only image files allowed")
-    if file.size and file.size > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Max 10 MB")
-    fname = f"{chat_id}_{uuid.uuid4().hex}{ext}"
     data = await file.read()
     if len(data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Max 10 MB")
+    fname = f"{chat_id}_{uuid.uuid4().hex}{ext}"
     (UPLOAD_DIR / fname).write_bytes(data)
     return await _store_and_broadcast(chat_id, user, "\U0001f4f7 Photo", f"/uploads/{fname}")
+
+
+MAX_FILE_MB = 25
+ALLOWED_FILE_EXTS = {
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv",
+    ".zip", ".rar", ".7z", ".apk", ".mp3", ".wav", ".ogg", ".m4a", ".mp4",
+    ".mov", ".avi", ".mkv", ".jpg", ".jpeg", ".png", ".webp", ".gif",
+}
+
+
+@chats_router.post("/{chat_id}/file")
+async def send_file(
+    chat_id: str, file: UploadFile = File(...), user: dict = Depends(current_user)
+):
+    _require_member(chat_id, user["id"])
+    orig = Path(file.filename or "file").name
+    ext = Path(orig).suffix.lower()
+    if ext not in ALLOWED_FILE_EXTS:
+        raise HTTPException(status_code=400, detail=f"File type {ext or '?'} not allowed")
+    data = await file.read()
+    if len(data) > MAX_FILE_MB * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"Max {MAX_FILE_MB} MB")
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    safe = "".join(c for c in orig if c.isalnum() or c in "._- ")[:80].strip() or "file"
+    fname = f"{chat_id}_{uuid.uuid4().hex}_{safe}"
+    (UPLOAD_DIR / fname).write_bytes(data)
+    return await _store_and_broadcast(
+        chat_id, user, "", f"/uploads/{fname}", file_name=orig, file_size=len(data)
+    )

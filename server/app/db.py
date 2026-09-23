@@ -58,6 +58,14 @@ def init_db() -> None:
             _conn.execute("ALTER TABLE messages ADD COLUMN seen_by TEXT DEFAULT '[]'")
         except Exception:
             pass
+        try:
+            _conn.execute("ALTER TABLE messages ADD COLUMN file_name TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            _conn.execute("ALTER TABLE messages ADD COLUMN file_size INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
 
 def fetch_all(query: str, params: tuple = ()) -> list[dict]:

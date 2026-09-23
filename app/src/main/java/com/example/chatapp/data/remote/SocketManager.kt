@@ -73,7 +73,9 @@ object SocketManager {
                                 text = m.optString("text"),
                                 imageUrl = if (rawImage.isNotBlank()) ServerConfig.absolute(rawImage) else "",
                                 timestamp = m.optString("timestamp"),
-                                seenBy = seen
+                                seenBy = seen,
+                                fileName = m.optString("fileName"),
+                                fileSize = m.optLong("fileSize")
                             )
                             _events.tryEmit(SocketEvent.Message(chatId, msg))
                         }
