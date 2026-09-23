@@ -7,6 +7,7 @@ import com.example.chatapp.data.remote.PresenceRequest
 import com.example.chatapp.data.remote.RegisterRequest
 import com.example.chatapp.data.remote.SocketManager
 import com.example.chatapp.data.remote.UpdateNameRequest
+import kotlinx.coroutines.tasks.await
 
 class AuthRepository {
     private val session: SessionManager get() = SessionManager.get()
@@ -30,6 +31,7 @@ class AuthRepository {
         session.save(res.token, res.user.uid, res.user.displayName, res.user.email)
         SocketManager.connect(res.token)
         setOnline(true)
+        uploadFcmToken()
     }
 
     suspend fun register(name: String, email: String, password: String) {
@@ -37,6 +39,17 @@ class AuthRepository {
         session.save(res.token, res.user.uid, res.user.displayName, res.user.email)
         SocketManager.connect(res.token)
         setOnline(true)
+        uploadFcmToken()
+    }
+
+    /** Sends this device's FCM token to the backend. Silent no-op until real keys exist. */
+    suspend fun uploadFcmToken() {
+        if (!session.hasToken()) return
+        try {
+            val token = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                .token.await()
+            api.device(com.example.chatapp.data.remote.DeviceRequest(token))
+        } catch (_: Exception) {}
     }
 
     suspend fun loadOrCreateProfile(): User? {

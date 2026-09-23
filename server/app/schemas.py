@@ -20,6 +20,10 @@ class PresenceIn(BaseModel):
     online: bool
 
 
+class DeviceIn(BaseModel):
+    fcmToken: str = Field(default="", max_length=512)
+
+
 class DirectChatIn(BaseModel):
     otherUid: str
 

@@ -173,7 +173,30 @@ async def _store_and_broadcast(chat_id: str, user: dict, text: str, image_url: s
         (preview, ts, user["id"], chat_id),
     )
     msg = _msg_dict(db.fetch_one("SELECT * FROM messages WHERE id = ?", (mid,)))
-    await ws.broadcast_to(_members(chat_id), {"type": "message", "chatId": chat_id, "message": msg})
+    member_ids = _members(chat_id)
+    await ws.broadcast_to(member_ids, {"type": "message", "chatId": chat_id, "message": msg})
+    # push to members other than the sender (no-op until fcm-key.json is installed)
+    try:
+        import asyncio
+
+        from .. import push as push_mod
+
+        others = [u for u in member_ids if u != user["id"]]
+        rows = (
+            db.fetch_all(
+                "SELECT fcm_token FROM users WHERE id IN (%s)" % ",".join("?" * len(others)),
+                tuple(others),
+            )
+            if others
+            else []
+        )
+        tokens = [r["fcm_token"] for r in rows if r.get("fcm_token")]
+        title, body = user["name"] or "New message", preview
+        asyncio.get_running_loop().run_in_executor(
+            None, lambda: push_mod.send_to_tokens(tokens, title, body, chat_id)
+        )
+    except Exception:
+        pass
     return msg
 
 

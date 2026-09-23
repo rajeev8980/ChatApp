@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -65,6 +66,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) {}.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 authRepo.setOnline(true)
@@ -76,6 +82,18 @@ class MainActivity : ComponentActivity() {
                     val nav = rememberNavController()
                     var banner by remember { mutableStateOf<BannerData?>(null) }
                     val backStack by nav.currentBackStackEntryAsState()
+                    val tapChatId = intent.getStringExtra("chatId").orEmpty()
+                    val tapChatName = intent.getStringExtra("chatName").orEmpty()
+
+                    // open chat tapped from a push notification
+                    LaunchedEffect(tapChatId) {
+                        if (tapChatId.isNotBlank()) {
+                            kotlinx.coroutines.delay(2000)
+                            if (authRepo.isLoggedIn) {
+                                nav.navigate(Routes.chat(tapChatId, tapChatName.ifBlank { "Chat" }))
+                            }
+                        }
+                    }
 
                     // in-app notification banner for chats other than the open one
                     LaunchedEffect(Unit) {

@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 
 from .. import db
-from ..schemas import LoginIn, PresenceIn, RegisterIn, UpdateMeIn
+from ..schemas import DeviceIn, LoginIn, PresenceIn, RegisterIn, UpdateMeIn
 from ..security import hash_password, make_token, now_iso, verify_password
 from .common import current_user, public_user
 
@@ -61,4 +61,11 @@ def presence(body: PresenceIn, user: dict = Depends(current_user)):
             "UPDATE users SET online = 0, last_seen = ? WHERE id = ?",
             (now_iso(), user["id"]),
         )
+    return {"ok": True}
+
+
+@me_router.post("/device")
+def device(body: DeviceIn, user: dict = Depends(current_user)):
+    db.execute("UPDATE users SET fcm_token = ? WHERE id = ?",
+               (body.fcmToken.strip(), user["id"]))
     return {"ok": True}

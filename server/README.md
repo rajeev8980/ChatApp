@@ -24,3 +24,9 @@ Windows: double-click `run.bat`. API at http://localhost:8000, docs at http://lo
 
 Auth: `Authorization: Bearer <token>` header on all `/api/*` except register/login/health.
 Android emulator reaches this PC via `http://10.0.2.2:8000`.
+
+## Push notifications (Step 6)
+Inactive until `server/fcm-key.json` (Firebase service-account key) exists — never commit it.
+- App sends its FCM token via `POST /api/device {fcmToken}` on every login.
+- New messages push to offline members automatically (sender name + text + chatId).
+- App needs the real `app/google-services.json` from Firebase console to receive.

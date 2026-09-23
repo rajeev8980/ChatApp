@@ -64,6 +64,7 @@ data class RegisterRequest(val name: String, val email: String, val password: St
 data class LoginRequest(val email: String, val password: String)
 data class UpdateNameRequest(val displayName: String)
 data class PresenceRequest(val online: Boolean)
+data class DeviceRequest(val fcmToken: String)
 data class DirectRequest(val otherUid: String)
 data class GroupRequest(val name: String, val memberUids: List<String>)
 data class TextRequest(val text: String)
@@ -85,6 +86,9 @@ interface ApiService {
 
     @POST("api/presence")
     suspend fun presence(@Body body: PresenceRequest): Map<String, Boolean>
+
+    @POST("api/device")
+    suspend fun device(@Body body: DeviceRequest): Map<String, Boolean>
 
     @GET("api/users")
     suspend fun users(): List<ApiUser>
