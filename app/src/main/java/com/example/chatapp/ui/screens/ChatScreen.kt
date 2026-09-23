@@ -302,7 +302,8 @@ fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean) {
             }
             if (msg.text.isNotBlank()) {
                 Text(
-                    msg.text, fontSize = 16.sp,
+                    msg.text + if (msg.pending) "  ⏳" else "",
+                    fontSize = 16.sp,
                     color = if (isMine) BubbleTextMine else BubbleTextTheirs
                 )
             }

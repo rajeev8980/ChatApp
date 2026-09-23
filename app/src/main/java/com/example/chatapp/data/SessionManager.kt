@@ -1,6 +1,7 @@
 package com.example.chatapp.data
 
 import android.content.Context
+import com.example.chatapp.ChatApp
 
 /** Token + profile cache in SharedPreferences. */
 class SessionManager(context: Context) {
@@ -27,6 +28,9 @@ class SessionManager(context: Context) {
         set(v) = prefs.edit().putString("server", v).apply()
 
     fun hasToken(): Boolean = token.isNotBlank()
+
+    fun prefs(name: String) =
+        ChatApp.instance.getSharedPreferences(name, android.content.Context.MODE_PRIVATE)
 
     fun save(token: String, uid: String, name: String, email: String) {
         prefs.edit()

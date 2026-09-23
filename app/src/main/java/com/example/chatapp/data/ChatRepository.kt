@@ -22,6 +22,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 class ChatRepository {
     private val api get() = Network.api()
+    private val outbox = OutboxStore()
 
     fun observeMyChats(myUid: String): Flow<List<Chat>> = callbackFlow {
         suspend fun refresh() {
@@ -107,11 +108,48 @@ class ChatRepository {
 
     suspend fun sendText(chatId: String, text: String) {
         if (text.isBlank()) return
-        api.sendText(chatId, TextRequest(text.trim()))
+        try {
+            api.sendText(chatId, TextRequest(text.trim()))
+        } catch (e: Exception) {
+            // offline: queue for automatic retry
+            outbox.add(PendingSend(chatId = chatId, text = text.trim()))
+            throw OfflineQueued(e)
+        }
     }
 
     suspend fun sendImage(chatId: String, uri: Uri) {
+        try {
+            uploadImage(chatId, uri.toString())
+        } catch (e: Exception) {
+            outbox.add(PendingSend(chatId = chatId, imageUri = uri.toString()))
+            throw OfflineQueued(e)
+        }
+    }
+
+    /** Try to flush all queued messages. Returns remaining count. */
+    suspend fun flushOutbox(): Int {
+        val pending = outbox.list()
+        for (p in pending) {
+            try {
+                if (p.imageUri.isNotBlank()) {
+                    uploadImage(p.chatId, p.imageUri)
+                } else {
+                    api.sendText(p.chatId, TextRequest(p.text))
+                }
+                outbox.remove(p.tempId)
+            } catch (_: Exception) {
+                // stop at first failure, keep order
+                break
+            }
+        }
+        return outbox.list().size
+    }
+
+    fun pendingFor(chatId: String): List<PendingSend> = outbox.forChat(chatId)
+
+    private suspend fun uploadImage(chatId: String, uriString: String) {
         val ctx = ChatApp.instance
+        val uri = Uri.parse(uriString)
         val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalArgumentException("Cannot read image")
         val mime = ctx.contentResolver.getType(uri) ?: "image/jpeg"
@@ -119,4 +157,6 @@ class ChatRepository {
         val part = MultipartBody.Part.createFormData("file", "photo.jpg", body)
         api.sendImage(chatId, part)
     }
+
+    class OfflineQueued(cause: Exception) : Exception("No connection — message queued, will send automatically")
 }
