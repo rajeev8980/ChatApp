@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 
 sealed interface SocketEvent {
     data class Message(val chatId: String, val message: ApiMessage) : SocketEvent
+    data class Seen(val chatId: String, val byUid: String) : SocketEvent
     data object Refresh : SocketEvent
 }
 
@@ -54,22 +55,32 @@ object SocketManager {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val json = JSONObject(text)
-                    if (json.optString("type") == "message") {
-                        val chatId = json.optString("chatId")
-                        val m = json.getJSONObject("message")
-                        val rawImage = m.optString("imageUrl")
-                        val msg = ApiMessage(
-                            messageId = m.optString("messageId"),
-                            chatId = m.optString("chatId"),
-                            senderId = m.optString("senderId"),
-                            senderName = m.optString("senderName"),
-                            text = m.optString("text"),
-                            imageUrl = if (rawImage.isNotBlank()) ServerConfig.absolute(rawImage) else "",
-                            timestamp = m.optString("timestamp")
+                    when (json.optString("type")) {
+                        "message" -> {
+                            val chatId = json.optString("chatId")
+                            val m = json.getJSONObject("message")
+                            val rawImage = m.optString("imageUrl")
+                            val seenArr = m.optJSONArray("seenBy")
+                            val seen = mutableListOf<String>()
+                            if (seenArr != null) {
+                                for (i in 0 until seenArr.length()) seen.add(seenArr.optString(i))
+                            }
+                            val msg = ApiMessage(
+                                messageId = m.optString("messageId"),
+                                chatId = m.optString("chatId"),
+                                senderId = m.optString("senderId"),
+                                senderName = m.optString("senderName"),
+                                text = m.optString("text"),
+                                imageUrl = if (rawImage.isNotBlank()) ServerConfig.absolute(rawImage) else "",
+                                timestamp = m.optString("timestamp"),
+                                seenBy = seen
+                            )
+                            _events.tryEmit(SocketEvent.Message(chatId, msg))
+                        }
+                        "seen" -> _events.tryEmit(
+                            SocketEvent.Seen(json.optString("chatId"), json.optString("byUid"))
                         )
-                        _events.tryEmit(SocketEvent.Message(chatId, msg))
-                    } else {
-                        _events.tryEmit(SocketEvent.Refresh)
+                        else -> _events.tryEmit(SocketEvent.Refresh)
                     }
                 } catch (_: Exception) {}
             }

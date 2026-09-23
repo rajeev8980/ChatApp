@@ -87,7 +87,8 @@ data class Message(
     val text: String = "",
     val imageUrl: String = "",
     val timestamp: String = "",
-    val pending: Boolean = false
+    val pending: Boolean = false,
+    val seenBy: List<String> = emptyList()
 ) {
     val isImage: Boolean get() = imageUrl.isNotBlank()
 }

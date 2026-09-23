@@ -53,6 +53,11 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_members_user ON chat_members(user_id);
             """
         )
+        # migration for existing DBs
+        try:
+            _conn.execute("ALTER TABLE messages ADD COLUMN seen_by TEXT DEFAULT '[]'")
+        except Exception:
+            pass
 
 
 def fetch_all(query: str, params: tuple = ()) -> list[dict]:

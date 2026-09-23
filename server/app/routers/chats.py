@@ -1,3 +1,4 @@
+import json
 import uuid
 from pathlib import Path
 
@@ -34,6 +35,10 @@ def _chat_dict(row: dict) -> dict:
 
 
 def _msg_dict(row: dict) -> dict:
+    try:
+        seen = json.loads(row.get("seen_by") or "[]")
+    except Exception:
+        seen = []
     return {
         "messageId": row["id"],
         "chatId": row["chat_id"],
@@ -42,6 +47,7 @@ def _msg_dict(row: dict) -> dict:
         "text": row["text"] or "",
         "imageUrl": row["image_url"] or "",
         "timestamp": row["timestamp"] or "",
+        "seenBy": seen,
     }
 
 
@@ -116,8 +122,31 @@ def get_chat(chat_id: str, user: dict = Depends(current_user)):
 
 
 @chats_router.get("/{chat_id}/messages")
-def get_messages(chat_id: str, limit: int = 200, user: dict = Depends(current_user)):
+async def get_messages(chat_id: str, limit: int = 200, user: dict = Depends(current_user)):
     _require_member(chat_id, user["id"])
+    rows = db.fetch_all(
+        "SELECT * FROM messages WHERE chat_id = ? ORDER BY timestamp ASC LIMIT ?",
+        (chat_id, min(limit, 500)),
+    )
+    # mark others' messages as seen by me
+    touched = False
+    for r in rows:
+        if r["sender_id"] == user["id"]:
+            continue
+        try:
+            seen = json.loads(r.get("seen_by") or "[]")
+        except Exception:
+            seen = []
+        if user["id"] not in seen:
+            seen.append(user["id"])
+            db.execute("UPDATE messages SET seen_by = ? WHERE id = ?",
+                       (json.dumps(seen), r["id"]))
+            touched = True
+    if touched:
+        await ws.broadcast_to(
+            _members(chat_id),
+            {"type": "seen", "chatId": chat_id, "byUid": user["id"]},
+        )
     rows = db.fetch_all(
         "SELECT * FROM messages WHERE chat_id = ? ORDER BY timestamp ASC LIMIT ?",
         (chat_id, min(limit, 500)),

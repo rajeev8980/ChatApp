@@ -225,7 +225,19 @@ fun ChatScreen(
                     val next = messages.getOrNull(index + 1)
                     val showAvatar = msg.senderId != myUid &&
                         (next == null || next.senderId != msg.senderId)
-                    IosBubble(msg = msg, isMine = msg.senderId == myUid, showAvatar = showAvatar)
+                    val isLastOwn = msg.senderId == myUid &&
+                        messages.none { it.senderId == myUid && it.timestamp > msg.timestamp } &&
+                        msg.pending.not()
+                    val others = (chat?.members ?: emptyList()).filter { it != myUid }
+                    val status = if (isLastOwn && msg.timestamp.isNotBlank()) {
+                        if (others.isNotEmpty() && others.all { it in msg.seenBy }) "Seen" else "Delivered"
+                    } else ""
+                    IosBubble(
+                        msg = msg,
+                        isMine = msg.senderId == myUid,
+                        showAvatar = showAvatar,
+                        status = status
+                    )
                 }
             }
         }
@@ -264,7 +276,8 @@ fun IosHeader(title: String, subtitle: String, onBack: () -> Unit) {
 }
 
 @Composable
-fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean) {
+fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean, status: String = "") {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
@@ -308,6 +321,11 @@ fun IosBubble(msg: Message, isMine: Boolean, showAvatar: Boolean) {
                 )
             }
         }
+    }
+    if (status.isNotBlank()) {
+        Text(status, fontSize = 11.sp, color = ChatTextDim,
+            modifier = Modifier.padding(end = 4.dp, top = 1.dp))
+    }
     }
 }
 

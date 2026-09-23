@@ -47,6 +47,19 @@ class ChatViewModel : ViewModel() {
                 _queued.value = chatRepo.pendingFor(chatId).size
             }
         }
+        // live read-receipts
+        viewModelScope.launch {
+            com.example.chatapp.data.remote.SocketManager.events.collect { event ->
+                if (event is com.example.chatapp.data.remote.SocketEvent.Seen &&
+                    event.chatId == chatId
+                ) {
+                    _messages.value = _messages.value.map { m ->
+                        if (m.pending || event.byUid in m.seenBy) m
+                        else m.copy(seenBy = m.seenBy + event.byUid)
+                    }
+                }
+            }
+        }
         // retry queued sends in background
         viewModelScope.launch {
             while (true) {

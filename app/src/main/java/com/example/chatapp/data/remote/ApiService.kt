@@ -48,10 +48,12 @@ data class ApiMessage(
     val senderName: String = "",
     val text: String = "",
     val imageUrl: String = "",
-    val timestamp: String = ""
+    val timestamp: String = "",
+    val seenBy: List<String> = emptyList()
 ) {
     fun toDomain() = Message(messageId, chatId, senderId, senderName, text,
-        if (imageUrl.isNotBlank()) ServerConfig.absolute(imageUrl) else "", timestamp)
+        if (imageUrl.isNotBlank()) ServerConfig.absolute(imageUrl) else "", timestamp,
+        seenBy = seenBy)
 }
 
 data class AuthResponse(val token: String = "", val user: ApiUser = ApiUser())
