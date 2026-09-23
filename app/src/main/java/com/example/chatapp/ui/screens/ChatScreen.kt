@@ -35,7 +35,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.TagFaces
 import androidx.compose.material3.CircularProgressIndicator
@@ -116,6 +120,9 @@ fun ChatScreen(
     val error by vm.error.collectAsState()
     var input by remember { mutableStateOf("") }
     var showEmoji by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var matchIdx by remember { mutableStateOf(0) }
     var chat by remember { mutableStateOf<Chat?>(null) }
     var peer by remember { mutableStateOf<User?>(null) }
     val myUid = try { SessionManager.get().uid } catch (_: Exception) { "" }
@@ -196,7 +203,19 @@ fun ChatScreen(
         }
     }
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size) // +stamp item
+        if (messages.isNotEmpty() && query.isBlank()) {
+            listState.animateScrollToItem(messages.size) // +stamp item
+        }
+    }
+    LaunchedEffect(matchIdx, query) {
+        if (searching && query.isNotBlank()) {
+            val ids = matchIds(messages, query)
+            if (ids.isNotEmpty()) {
+                val target = ids[matchIdx % ids.size]
+                val pos = messages.indexOfFirst { it.messageId == target }
+                if (pos >= 0) listState.animateScrollToItem(pos + 1) // +1 for stamp
+            }
+        }
     }
     LaunchedEffect(error) {
         if (error != null) {
@@ -212,7 +231,32 @@ fun ChatScreen(
     }
 
     Scaffold(
-        topBar = { IosHeader(title = chatName, subtitle = subtitle, onBack = onBack) },
+        topBar = {
+            Column {
+                IosHeader(
+                    title = chatName,
+                    subtitle = subtitle,
+                    onBack = onBack,
+                    onSearch = { searching = true; query = ""; matchIdx = 0 }
+                )
+                if (searching) {
+                    val ids = matchIds(messages, query)
+                    SearchBar(
+                        query = query,
+                        onQuery = { query = it; matchIdx = 0 },
+                        matchText = if (query.isBlank()) "" else
+                            "${if (ids.isEmpty()) 0 else matchIdx % ids.size + 1} of ${ids.size}",
+                        onPrev = { if (ids.isNotEmpty()) matchIdx = (matchIdx - 1 + ids.size) % ids.size },
+                        onNext = {
+                            if (ids.isNotEmpty()) {
+                                matchIdx = (matchIdx + 1) % ids.size
+                            }
+                        },
+                        onClose = { searching = false; query = "" }
+                    )
+                }
+            }
+        },
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
             IosInputBar(
@@ -278,7 +322,7 @@ fun ChatScreen(
 }
 
 @Composable
-fun IosHeader(title: String, subtitle: String, onBack: () -> Unit) {
+fun IosHeader(title: String, subtitle: String, onBack: () -> Unit, onSearch: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(ChatHeaderBg)) {
         Spacer(Modifier.height(44.dp))
         Row(
@@ -303,8 +347,82 @@ fun IosHeader(title: String, subtitle: String, onBack: () -> Unit) {
                     Text(subtitle, fontSize = 12.sp, color = ChatTextDim, maxLines = 1)
                 }
             }
+            IconButton(onClick = onSearch, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.Search, contentDescription = "Search", tint = ChatText)
+            }
         }
         HorizontalDivider(color = ChatDivider, thickness = 0.5.dp)
+    }
+}
+
+fun matchIds(messages: List<Message>, query: String): List<String> {
+    if (query.isBlank()) return emptyList()
+    val q = query.lowercase()
+    return messages.filter {
+        it.text.lowercase().contains(q) ||
+            it.senderName.lowercase().contains(q) ||
+            it.fileName.lowercase().contains(q)
+    }.map { it.messageId }
+}
+
+@Composable
+fun SearchBar(
+    query: String,
+    onQuery: (String) -> Unit,
+    matchText: String,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onClose: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(ChatHeaderBg)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(InputBg)
+                .padding(horizontal = 12.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Search, contentDescription = null,
+                tint = ChatTextDim, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Box(Modifier.weight(1f)) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQuery,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                    textStyle = TextStyle(color = ChatText, fontSize = 15.sp),
+                    cursorBrush = SolidColor(AccentBlue),
+                    singleLine = true
+                )
+                if (query.isEmpty()) {
+                    Text("Search messages", color = ChatTextDim, fontSize = 15.sp,
+                        modifier = Modifier.padding(vertical = 7.dp))
+                }
+            }
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQuery("") }, modifier = Modifier.size(26.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear",
+                        tint = ChatTextDim, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        if (matchText.isNotBlank()) {
+            Text(matchText, fontSize = 12.sp, color = ChatTextDim,
+                modifier = Modifier.padding(horizontal = 6.dp))
+            IconButton(onClick = onPrev, modifier = Modifier.size(30.dp)) {
+                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous", tint = ChatText)
+            }
+            IconButton(onClick = onNext, modifier = Modifier.size(30.dp)) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next", tint = ChatText)
+            }
+        }
+        IconButton(onClick = onClose, modifier = Modifier.size(30.dp)) {
+            Icon(Icons.Default.Close, contentDescription = "Close search", tint = ChatText)
+        }
     }
 }
 
